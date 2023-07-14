@@ -102,17 +102,14 @@ class ExpressionTypeVisitor(val typeChecker: TypeChecker) extends OberonVisitorA
 
   def fieldAccessCheck(exp: Expression, attributeName: String): T = {
     exp.accept(this) match {
-      case Some(ReferenceToUserDefinedType(userTypeName)) => {
+      case Some(ReferenceToUserDefinedType(userTypeName)) =>
         typeChecker.env.lookupUserDefinedType(userTypeName) match {
           case Some(UserDefinedType(_, RecordType(variables))) =>
-            variables.find(v => v.name.equals(attributeName)).map(_.variableType)
+            variables.find(v => v.name.equals(attributeName)).map(_.variableType).orElse(None)
           case _ => None
         }
-      }
-      case Some(RecordType(variables)) => {
-        val attribute = variables.find(v => v.name.equals(attributeName))
-        if (attribute.isDefined) Some(attribute.get.variableType) else None
-      }
+      case Some(RecordType(variables)) =>
+        variables.find(v => v.name.equals(attributeName)).map(_.variableType).orElse(None)
       case _ => None
     }
   }
@@ -128,7 +125,8 @@ class ExpressionTypeVisitor(val typeChecker: TypeChecker) extends OberonVisitorA
 
   def lambdaExpressionCheck(args: List[FormalArg], exp: Expression): T = {
     typeChecker.env.push()
-    args.foreach(a => typeChecker.env.setLocalVariable(a.name, a.argumentType))
+    typeChecker.env = args.foldLeft(typeChecker.env)((e1: Environment[Type], arg: FormalArg) => e1.setVariable(arg.name, arg.argumentType))
+//    args.foreach(a =>   typeChecker.env.setLocalVariable(a.name, a.argumentType))
     val argTypes = args.map(a => a.argumentType)
     val expType = exp.accept(this)
     typeChecker.env.pop()
@@ -281,34 +279,38 @@ class TypeChecker extends OberonVisitorAdapter {
     case PointerAssignment(pointerName) =>
       expVisitor.pointerAccessCheck(pointerName)
     case VarAssignment(varName) =>
-      env.lookup(varName).flatMap(_.accept(expVisitor))
+      for {
+        variable <- env.lookup(varName)
+        variableType <- variable.accept(expVisitor)
+      } yield variableType
     case ArrayAssignment(array, elem) =>
       expVisitor.arrayElementAccessCheck(array, elem)
     case RecordAssignment(record, atrib) =>
       expVisitor.fieldAccessCheck(record, atrib)
   }
 
-  private def visitIfElseStmt(stmt: Statement) = stmt match {
+
+  private def visitIfElseStmt(stmt: Statement): List[(Statement, String)] = stmt match {
     case IfElseStmt(condition, thenStmt, elseStmt) =>
-      var errorList = thenStmt.accept(this)
-
-      if(!condition.accept(expVisitor).contains(BooleanType)) {
-        errorList = (stmt, s"Expression $condition does not have a boolean type") :: errorList
+      val thenErrors = thenStmt.accept(this)
+      val conditionErrors = condition.accept(expVisitor) match {
+        case Some(BooleanType) => List.empty[(Statement, String)]
+        case _ => List((stmt, s"Expression $condition does not have a boolean type"))
       }
-
-      errorList ++ elseStmt.map(_.accept(this)).getOrElse(List())
+      val elseErrors = elseStmt.map(_.accept(this)).getOrElse(List.empty[(Statement, String)])
+      thenErrors ++ conditionErrors ++ elseErrors
   }
 
-  private def visitWhileStmt(stmt: Statement) = stmt match {
-    case WhileStmt(condition, stmt) =>
-      val errorList = stmt.accept(this)
+  private def visitWhileStmt(stmt: Statement): List[(Statement, String)] = stmt match {
+    case WhileStmt(condition, body) =>
+      val errors = body.accept(this)
 
-      if(condition.accept(expVisitor).contains(BooleanType)) {
-        errorList
-      } else {
-        (stmt, s"Expression $condition do not have a boolean type") :: errorList
+      condition.accept(expVisitor) match {
+        case Some(BooleanType) => errors
+        case _ => (stmt, s"Expression $condition does not have a boolean type") :: errors
       }
   }
+
 
   private def visitExitStmt() = List[(br.unb.cic.oberon.ir.ast.Statement, String)]()
 
