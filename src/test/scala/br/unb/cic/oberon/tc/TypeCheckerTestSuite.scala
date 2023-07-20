@@ -10,6 +10,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import br.unb.cic.oberon.transformations.CoreVisitor
 import br.unb.cic.oberon.ir.ast.{OberonModule, VariableDeclaration}
 import br.unb.cic.oberon.environment.Environment
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.collection.mutable.Map
 import scala.collection.mutable.ListBuffer

@@ -124,12 +124,11 @@ class ExpressionTypeVisitor(val typeChecker: TypeChecker) extends OberonVisitorA
   }
 
   def lambdaExpressionCheck(args: List[FormalArg], exp: Expression): T = {
-    typeChecker.env.push()
-    typeChecker.env = args.foldLeft(typeChecker.env)((e1: Environment[Type], arg: FormalArg) => e1.setVariable(arg.name, arg.argumentType))
-//    args.foreach(a =>   typeChecker.env.setLocalVariable(a.name, a.argumentType))
+    typeChecker.env = typeChecker.env.push()
+    args.foreach(a => typeChecker.env.setLocalVariable(a.name, a.argumentType))
     val argTypes = args.map(a => a.argumentType)
     val expType = exp.accept(this)
-    typeChecker.env.pop()
+    typeChecker.env = typeChecker.env.pop()
 
     expType match {
       case None => None
