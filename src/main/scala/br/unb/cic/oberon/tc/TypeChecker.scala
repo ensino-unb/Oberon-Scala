@@ -125,7 +125,7 @@ class ExpressionTypeVisitor(val typeChecker: TypeChecker) extends OberonVisitorA
 
   def lambdaExpressionCheck(args: List[FormalArg], exp: Expression): T = {
     typeChecker.env = typeChecker.env.push()
-    args.foreach(a => typeChecker.env.setLocalVariable(a.name, a.argumentType))
+    for(f<-args){typeChecker.env = typeChecker.env.setLocalVariable(f.name,f.argumentType)}
     val argTypes = args.map(a => a.argumentType)
     val expType = exp.accept(this)
     typeChecker.env = typeChecker.env.pop()
@@ -182,9 +182,9 @@ class TypeChecker extends OberonVisitorAdapter {
     val expType = forEachStmt.exp.accept(expVisitor)
     val varType = env.lookup(forEachStmt.varName)
 
-    val res = if(expType.isDefined && expType.get.isInstanceOf[ArrayType]) {
+    val res = if (expType.isDefined && expType.get.isInstanceOf[ArrayType]) {
       val arrayBaseType = expType.get.asInstanceOf[ArrayType].baseType.accept(expVisitor)
-      if(arrayBaseType != varType)
+      if (arrayBaseType != varType)
         List((forEachStmt, "invalid types in the foreach statement"))
       else
         List()
@@ -194,7 +194,6 @@ class TypeChecker extends OberonVisitorAdapter {
     }
     res ++ forEachStmt.stmt.accept(this)
   }
-
   override def visit(stmt: Statement): List[(Statement, String)] = stmt match {
     case AssignmentStmt(_, _) => visitAssignment(stmt)
     case IfElseStmt(_, _, _) => visitIfElseStmt(stmt)
